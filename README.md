@@ -1,4 +1,4 @@
-# rust-web-crawler
+# Rust Web Crawler
 
 ## Overview
 A very basic web crawler. This is just a POC using RUST
