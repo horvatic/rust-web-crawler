@@ -1,12 +1,37 @@
 extern crate html_escape;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let seed = "https://docs.rs/reqwest/0.11.2/reqwest/blocking/index.html";
-	let host = "https://docs.rs/";
-	return crawl(&host, &seed, &seed)
+struct UriStore {
+	uris: std::collections::HashMap<String, usize>,
 }
 
-fn crawl(host: &str, page: &str, seed: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+	let seed = "https://docs.rs/";
+	let limit = 2;
+	let mut store = UriStore { uris: std::collections::HashMap::new() };
+	let r = crawl(&seed, &seed, &mut store, 0, limit);
+	match r {
+		Err(error) => println!("error: {}", error),
+		_ => (),
+	};
+
+	for (uri, count) in &store.uris {
+		    println!("{} \"{}\"", uri, count);
+	}
+	
+	return Ok(());
+}
+
+fn crawl(host: &str, seed: &str, store: &mut UriStore, current_depth: usize, limit: usize) -> Result<(), Box<dyn std::error::Error>> {
+	if store.uris.contains_key(&seed.to_string()) {
+		let seed_count = store.uris.get(&seed.to_string()).unwrap() + 1;
+		store.uris.insert(seed.to_string(), seed_count);
+		return Ok(());
+	}
+	store.uris.insert(seed.to_string(), 1);
+	if seed.contains("#") || current_depth >= limit || !seed.starts_with("http") {
+		return Ok(());
+	}
+
 	let mut html = reqwest::blocking::get(seed)?.text()?;
 	let href_offset = 9;
 	let mut done = false;
@@ -16,10 +41,15 @@ fn crawl(host: &str, page: &str, seed: &str) -> Result<(), Box<dyn std::error::E
 		match pos {
 			Some(x) => {
 				html = remove_scanned_html(x + href_offset, &html).to_string();
-				let end_pos = find_uri(host, page, &html);
+				let (end_pos, clean) = find_uri(host, seed, &html);
 				if end_pos != 0 {
 					html = remove_scanned_html(end_pos, &html).to_string();
 				}
+				let r = crawl(host, &clean, store, current_depth + 1, limit); 
+				match r {
+					Err(error) => println!("error: {}", error),
+					_ => (),
+				};
 			},
 			None => done = true,
 		}
@@ -27,14 +57,14 @@ fn crawl(host: &str, page: &str, seed: &str) -> Result<(), Box<dyn std::error::E
 	Ok(())
 }
 
-fn find_uri(host: &str, page: &str, html: &str) -> usize {
+fn find_uri(host: &str, page: &str, html: &str) -> (usize, String) {
 	let pos = html.find(|c: char| (c == '\"') || (c == '\''));
 	match pos {
 		Some(x) => { 
-			println!("{:#?}", clean_html(host, page, &html[..x]));
-			return x;
+			let clean = clean_html(host, page, &html[..x]);
+			return (x, clean);
 		},
-		None => return 0,
+		None => return (0, "".to_string()),
 	}
 }
 
