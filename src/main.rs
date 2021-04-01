@@ -5,8 +5,13 @@ struct UriStore {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-	let seed = "https://docs.rs/";
-	let limit = 2;
+	let args: Vec<String> = std::env::args().collect();
+	if args.len() != 3 {
+		println!("args: seed limit");
+	}
+
+	let seed = &args[1];
+	let limit = args[2].parse::<usize>().unwrap();
 	let mut store = UriStore { uris: std::collections::HashMap::new() };
 	let r = crawl(&seed, &seed, &mut store, 0, limit);
 	match r {
@@ -74,6 +79,9 @@ fn remove_scanned_html(pos: usize, html: &str) -> &str {
 
 fn clean_html(host: &str, page: &str, html: &str) -> String {
 	let mut clean = String::from(html_escape::decode_html_entities(html));
+	if clean.len() == 0 {
+		return clean;
+	}
 	clean = match &clean[0..1] {
 		"/"   => clean.replacen("/", host, 1),
 		"#"   => page.to_owned() + &clean,
